@@ -1,0 +1,64 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=4156
+
+DESCRIPTION
+Many applications produce multiple log files; there may be one per component
+or one production log and a separate debug log, or one from the server daemon
+and one from the client application. During analysis, one may need to step
+through them in tandem, when one provides details that the other doesn't.
+Doing this manually in split windows is tedious; 'scrollbind' usually doesn't
+help because different amounts of log lines are written to each file.
+
+As long as each log file provides a timestamp or similar monotonically
+increasing field, this plugin automatically syncs the cursor movement in one
+log window to all other windows. When moving to another line in the current
+window, all log lines that fall in the time range covered by the movement are
+highlighted automatically.
+
+An example screenshot can be found at
+    http://ingo-karkat.de/swdev/vim/LogViewer.png
+
+USAGE
+With the default automatic syncing, any filetype specifying a log file will
+automatically set up the corresponding autocommands; without it, you need to
+enable syncing via :LogViewerMaster. The current line in the current buffer
+will be highlighted and marked with the "T" (for target) sign:
+T 2012-08-01 10:01:22.342
+
+When you move to another line, the plugin will mark the synced move in other
+buffers to an adjacent line like this:
+  2012-08-01 10:01:22.342
+> 2012-08-01 10:01:23.234
+When the timespan in the current buffer covers multiple log lines in another
+buffer, the start of the range is marked with "-" and the end of the range
+with "V" (downward move) / "^" (upward move):
+  2012-08-01 10:01:22.342
+- 2012-08-01 10:01:23.234
+  2012-08-01 10:01:23.250
+V 2012-08-01 10:01:26.012
+
+
+:LogViewerMaster        Designate the current buffer as the log master. Only
+                        cursor movements in this buffer will sync to other
+                        buffers; movements in other buffers won't affect the
+                        markers any more.
+
+
+:LogViewerUpdate CursorMoved | CursorHold | Manual
+                        Set the trigger for the syncing to the passed event.
+                        By default, each cursor movement will immediately
+                        update all other log buffers. With CursorHold, this
+                        will only happen after 'updatetime'. With Manual, it
+                        has to be explicitly triggered with
+                        :LogViewerTarget.
+
+
+:LogViewerTarget        Set the target log line (the basis for the
+                        highlighting in all other log buffers) to the current
+                        line in the current buffer.
+:[count]LogViewerTarget Set the target log line to [count] timestamps down
+                        from the current target timestamp.
+:LogViewerTarget {timestamp}
+                        Set the target log line to the first timestamp that
+                        matches {timestamp}. Useful to proceed to the
+                        beginning of a date when interesting things have
+                        happened.
