@@ -3,13 +3,17 @@
 " DEPENDENCIES:
 "   - Requires Vim 7.0 or higher.
 "   - LogViewer.vim autoload script
+"   - ingo/err.vim autoload script
 "
-" Copyright: (C) 2011-2012 Ingo Karkat
+" Copyright: (C) 2011-2014 Ingo Karkat
 "   The VIM LICENSE applies to this script; see ':help copyright'.
 "
 " Maintainer:	Ingo Karkat <ingo@karkat.de>
 "
 " REVISION	DATE		REMARKS
+"   1.10.005	24-Oct-2014	:LogViewerMaster now also may return an error.
+"				Add :LogViewerEnable and :LogViewerDisable.
+"   1.01.004	05-May-2014	Abort on error.
 "   1.00.003	24-Jul-2012	Change LogViewerTarget background highlighting
 "				to LightYellow; the original Orange looks too
 "				similar to my log4j syntax highlighting of WARN
@@ -43,29 +47,30 @@ endif
 
 "- commands --------------------------------------------------------------------
 
+command! -bar LogViewerEnable  let b:LogViewer_Enabled = 1 | if g:LogViewer_SyncAll | call LogViewer#InstallLogLineSync() | endif
+command! -bar LogViewerDisable let b:LogViewer_Enabled = 0 | call LogViewer#DeinstallLogLineSync()
+
 " Turn off syncing in all buffers other that the current one.
-command! -bar LogViewerMaster call LogViewer#Master()
+command! -bar LogViewerMaster if ! LogViewer#Master() | echoerr ingo#err#Get() | endif
 
 " Change g:LogViewer_SyncUpdate
 function! s:SetSyncUpdate( syncUpdate )
     if index(s:syncUpdates, a:syncUpdate) == -1
-	let v:errmsg = printf('Invalid LogViewer sync update: "%s"; use one of %s', a:syncUpdate, join(s:syncUpdates, ', '))
-	echohl ErrorMsg
-	echomsg v:errmsg
-	echohl None
-	return
+	call ingo#err#Set(printf('Invalid LogViewer sync update: "%s"; use one of %s', a:syncUpdate, join(s:syncUpdates, ', ')))
+	return 0
     endif
 
     let g:LogViewer_SyncUpdate = a:syncUpdate
+    return 1
 endfunction
 function! s:SyncUpdateComplete( ArgLead, CmdLine, CursorPos )
     return filter(copy(s:syncUpdates), 'v:val =~ (empty(a:ArgLead) ? ".*" : a:ArgLead)')
 endfunction
-command! -bar -nargs=1 -complete=customlist,<SID>SyncUpdateComplete LogViewerUpdate call <SID>SetSyncUpdate(<q-args>)
+command! -bar -nargs=1 -complete=customlist,<SID>SyncUpdateComplete LogViewerUpdate if ! <SID>SetSyncUpdate(<q-args>) | echoerr ingo#err#Get() | endif
 
 " Set target to current line, [count] timestamps down (from the current target
 " timestamp), or the first timestamp that matches {timestamp}.
-command! -bar -range=0 -nargs=? LogViewerTarget call LogViewer#SetTarget(<count>, <q-args>)
+command! -bar -range=0 -nargs=? LogViewerTarget if ! LogViewer#SetTarget(<count>, <q-args>) | echoerr ingo#err#Get() | endif
 
 
 "- autocmds --------------------------------------------------------------------

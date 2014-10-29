@@ -1,14 +1,30 @@
 " LogViewer.vim: Comfortable examination of multiple parallel logfiles.
 "
 " DEPENDENCIES:
-"   - EchoWithoutScrolling.vim autoload script
+"   - ingo/avoidprompt.vim autoload script
+"   - ingo/err.vim autoload script
 
-" Copyright: (C) 2011-2012 Ingo Karkat
+" Copyright: (C) 2011-2014 Ingo Karkat
 "   The VIM LICENSE applies to this script; see ':help copyright'.
 "
 " Maintainer:	Ingo Karkat <ingo@karkat.de>
 "
 " REVISION	DATE		REMARKS
+"   1.10.005	24-Oct-2014	Also check for log buffer on :LogViewerMaster
+"				instead of failing with "E216: No such group or
+"				event: LogViewerSync * <buffer>".
+"				Give hint on how to enable the plugin in error
+"				message.
+"				Also consider buffers where b:LogViewer_Enabled
+"				is set and true.
+"				Expose s:DeinstallLogLineSync() for
+"				:LogViewerDisable and also clear signs then.
+"   1.01.004	21-Oct-2014	Syncing on the CursorMoved event disturbs the
+"				selection, making it impossible to select
+"				multiple log lines. Explicitly restore the
+"				visual selection.
+"   1.01.003	05-May-2014	Abort on error.
+"   1.01.006	07-Jun-2013	Move EchoWithoutScrolling.vim into ingo-library.
 "   1.00.005	01-Aug-2012	Clear the collective summary when no syncing was
 "				done; keeping the previous summary around is
 "				confusing.
@@ -36,6 +52,9 @@ function! s:GetTimestamp( lnum )
 endfunction
 
 function! s:IsLogBuffer()
+    if exists('b:LogViewer_Enabled')
+	return b:LogViewer_Enabled
+    endif
     return (index(split(g:LogViewer_Filetypes, ','), &l:filetype) != -1)
 endfunction
 
@@ -193,7 +212,7 @@ function! s:SyncToTimestamp( timestamp, isBackward )
     if ! empty(l:summaries)
 	" We have found other log buffers, print their summaries or clear the
 	" last summary when no syncing was done.
-	call EchoWithoutScrolling#Echo(join(filter(l:summaries, '! empty(v:val)'), '; '))
+	call ingo#avoidprompt#Echo(join(filter(l:summaries, '! empty(v:val)'), '; '))
     endif
 endfunction
 
@@ -204,7 +223,7 @@ function! LogViewer#LineSync( syncEvent )
 
     if ! s:IsLogBuffer()
 	" The filetype must have changed to a non-logfile.
-	call s:DeinstallLogLineSync()
+	call LogViewer#DeinstallLogLineSync()
 	return
     endif
 
@@ -218,9 +237,15 @@ function! LogViewer#LineSync( syncEvent )
     endif
     let b:LogViewer_prevline = line('.')
 
+    let l:mode = mode()
     let l:timestamp = s:GetTimestamp('.')
     if ! empty(l:timestamp)
 	call s:SyncToTimestamp(l:timestamp, l:isBackward)
+
+	if a:syncEvent =~# 'CursorMoved' && l:mode =~# "[vV\<C-v>]"
+	    " The sync has disturbed the selection; restore it.
+	    normal! gv
+	endif
     endif
 endfunction
 
@@ -262,26 +287,24 @@ function! s:JumpToTimestampOffset( startLnum, offset )
 
     execute l:lnum
 endfunction
+function! s:NotInLogBufferError()
+    call ingo#err#Set(printf('Not in log buffer; either :LogViewerEnable or :set filetype%s %s',
+    \   (g:LogViewer_Filetypes =~# ',' ? ' to one of:' : ''),
+    \   g:LogViewer_Filetypes
+    \))
+    return 0
+endfunction
 function! LogViewer#SetTarget( timestampOffset, targetSpec )
     if ! s:IsLogBuffer()
-	let v:errmsg = 'Not in log buffer'
-	echohl ErrorMsg
-	echomsg v:errmsg
-	echohl None
-
-	return
+	return s:NotInLogBufferError()
     endif
 
     if ! empty(a:targetSpec)
 	" Search for a timestamp matching the passed target specification.
 	let l:lnum = s:FindTimestamp(a:targetSpec)
 	if l:lnum == -1
-	    let v:errmsg = 'No timestamp matching "' . a:targetSpec . '" found'
-	    echohl ErrorMsg
-	    echomsg v:errmsg
-	    echohl None
-
-	    return
+	    call ingo#err#Set('No timestamp matching "' . a:targetSpec . '" found')
+	    return 0
 	endif
 
 	if a:timestampOffset != 0
@@ -300,6 +323,7 @@ function! LogViewer#SetTarget( timestampOffset, targetSpec )
     endif
 
     call LogViewer#LineSync('')
+    return 1
 endfunction
 
 function! LogViewer#MasterEnter()
@@ -340,11 +364,16 @@ function! LogViewer#InstallLogLineSync()
 	autocmd WinLeave <buffer> if ! <SID>HasFixedMaster() | call LogViewer#MasterLeave() | endif
     augroup END
 endfunction
-function! s:DeinstallLogLineSync()
-    autocmd! LogViewerSync * <buffer>
+function! LogViewer#DeinstallLogLineSync()
+    call s:SignClear()
+    silent! autocmd! LogViewerSync * <buffer>
 endfunction
 
 function! LogViewer#Master()
+    if ! s:IsLogBuffer()
+	return s:NotInLogBufferError()
+    endif
+
     call LogViewer#LineSync('')
 
     if g:LogViewer_SyncAll
@@ -365,6 +394,7 @@ function! LogViewer#Master()
 	    " need to adapt when jumping around windows.
 	augroup END
     endif
+    return 1
 endfunction
 
 let &cpo = s:save_cpo

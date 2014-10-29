@@ -18,10 +18,13 @@ An example screenshot can be found at
     http://ingo-karkat.de/swdev/vim/LogViewer.png
 
 USAGE
-With the default automatic syncing, any filetype specifying a log file will
-automatically set up the corresponding autocommands; without it, you need to
-enable syncing via :LogViewerMaster. The current line in the current buffer
-will be highlighted and marked with the "T" (for target) sign:
+The plugin is either activated automatically for the 'filetype' values in
+g:LogViewer_Filetypes, or it can be manually activated for any buffer with
+the :LogViewerEnable command.
+With the default automatic syncing, any log buffer will automatically set up
+the corresponding autocommands; without it, you need to kick off syncing in
+one buffer via :LogViewerMaster. The current line in the current buffer will
+be highlighted and marked with the "T" (for target) sign:
 T 2012-08-01 10:01:22.342
 
 When you move to another line, the plugin will mark the synced move in other
@@ -36,12 +39,16 @@ with "V" (downward move) / "^" (upward move):
   2012-08-01 10:01:23.250
 V 2012-08-01 10:01:26.012
 
+:LogViewerEnable        Consider the current buffer as a log (even though its
+                        'filetype' does not automatically make it one).
+
+:LogViewerDisable       Exclude the current buffer from the log syncing; any
+                        signs and automatic updates are removed from it.
 
 :LogViewerMaster        Designate the current buffer as the log master. Only
                         cursor movements in this buffer will sync to other
                         buffers; movements in other buffers won't affect the
                         markers any more.
-
 
 :LogViewerUpdate CursorMoved | CursorHold | Manual
                         Set the trigger for the syncing to the passed event.
@@ -50,7 +57,6 @@ V 2012-08-01 10:01:26.012
                         will only happen after 'updatetime'. With Manual, it
                         has to be explicitly triggered with
                         :LogViewerTarget.
-
 
 :LogViewerTarget        Set the target log line (the basis for the
                         highlighting in all other log buffers) to the current
